@@ -26,7 +26,7 @@
             </intent-filter>
         </receiver>
 
-        <service android:name=".NetworkMonitorService" />
+        <service android:name=".NetworkMonitoringService" />
     </application>
 
 </manifest>

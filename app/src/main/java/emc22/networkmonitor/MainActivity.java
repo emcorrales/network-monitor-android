@@ -1,11 +1,12 @@
 package emc22.networkmonitor;
 
 import android.content.Intent;
-import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.net.TrafficStats;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
-import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
 import java.util.ArrayList;
@@ -25,18 +26,34 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
 
-        PackageManager pm = getPackageManager();
-        List<ApplicationInfo> packages = pm.getInstalledApplications(PackageManager.GET_META_DATA);
-        List<String> processNames = new ArrayList();
-        for (ApplicationInfo p : packages) {
-            processNames.add(p.processName);
-        }
-        mListView.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, processNames));
+        ApplicationAdapter adapter = new ApplicationAdapter(this, filterApplications());
+        mListView.setAdapter(adapter);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        startService(new Intent(this, NetworkMonitorService.class));
+        startService(new Intent(this, NetworkMonitoringService.class));
+    }
+
+    private List<PackageInfo> getPackageInfos() {
+        PackageManager pm = getPackageManager();
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            return pm.getInstalledPackages(0);
+        } else {
+            String[] permission = {"android.permission.INTERNET"};
+            return pm.getPackagesHoldingPermissions(permission, 0);
+        }
+    }
+
+    private List<PackageInfo> filterApplications() {
+        List<PackageInfo> filtered = new ArrayList<>();
+        List<PackageInfo> originalPackageInfos = getPackageInfos();
+        for (PackageInfo packageInfo : originalPackageInfos) {
+            if (TrafficStats.getUidRxBytes(packageInfo.applicationInfo.uid) > 0) {
+                filtered.add(packageInfo);
+            }
+        }
+        return filtered;
     }
 }
