@@ -28,11 +28,6 @@ public class MainActivity extends AppCompatActivity {
 
         ApplicationAdapter adapter = new ApplicationAdapter(this, filterApplications());
         mListView.setAdapter(adapter);
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
         startService(new Intent(this, NetworkMonitoringService.class));
     }
 

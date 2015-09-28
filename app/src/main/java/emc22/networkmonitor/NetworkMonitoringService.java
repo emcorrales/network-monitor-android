@@ -15,7 +15,6 @@ import android.support.v4.app.TaskStackBuilder;
 import android.text.format.Formatter;
 
 public class NetworkMonitoringService extends Service implements Runnable {
-    public static final String TAG = NetworkMonitoringService.class.getSimpleName();
     public static final int SERVICE_ID = 777;
 
     private boolean mIsNotificationEnabled = true;
@@ -49,7 +48,6 @@ public class NetworkMonitoringService extends Service implements Runnable {
         mIsNotificationEnabled = true;
 
         while (mIsNotificationEnabled) {
-
             String text = null;
             String bigText = null;
             long receiving;
@@ -60,78 +58,84 @@ public class NetworkMonitoringService extends Service implements Runnable {
             String receivedTxt;
             int iconResId = R.mipmap.ic_launcher;
 
-            if (isMobile()) {
-                long sentBytes = TrafficStats.getMobileTxBytes();
-                if (sentBytes != TrafficStats.UNSUPPORTED) {
-                    sending = sentBytes - prevSentBytes;
-                    prevSentBytes = sentBytes;
-                    sendingTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, sending);
-                    sentTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, sentBytes);
-                } else {
-                    sendingTxt = "Unsupported";
-                    sentTxt = "Unsupported";
+            if (isConnected()) {
+                if (isMobile()) {
+                    long sentBytes = TrafficStats.getMobileTxBytes();
+                    if (sentBytes != TrafficStats.UNSUPPORTED) {
+                        sending = sentBytes - prevSentBytes;
+                        prevSentBytes = sentBytes;
+                        sendingTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, sending);
+                        sentTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, sentBytes);
+                    } else {
+                        sendingTxt = "Unsupported";
+                        sentTxt = "Unsupported";
+                    }
+
+                    long receivedBytes = TrafficStats.getMobileRxBytes();
+                    if (receivedBytes != TrafficStats.UNSUPPORTED) {
+                        receiving = receivedBytes - prevReceivedBytes;
+                        prevReceivedBytes = receivedBytes;
+                        receivingTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, receiving);
+                        receivedTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, receivedBytes);
+                    } else {
+                        receivingTxt = "Unsupported";
+                        receivedTxt = "Unsupported";
+                    }
+                    text = "receiving: " + receivingTxt + "\nsending: " + sendingTxt;
+                    bigText = text + "\nreceived: " + receivedTxt + "\nsent: " + sentTxt;
+                    iconResId = R.drawable.ic_stat_mobile;
+
+                } else if (isWifi()) {
+                    if (TrafficStats.getTotalTxBytes() != TrafficStats.UNSUPPORTED
+                            && TrafficStats.getMobileTxBytes() != TrafficStats.UNSUPPORTED) {
+                        long sentBytes = TrafficStats.getTotalTxBytes() - TrafficStats.getMobileTxBytes();
+                        sending = sentBytes - prevSentBytes;
+                        prevSentBytes = sentBytes;
+                        sendingTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, sending);
+                        sentTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, sentBytes);
+                    } else {
+                        sendingTxt = "Unsupported";
+                        sentTxt = "Unsupported";
+                    }
+
+                    if (TrafficStats.getTotalRxBytes() != TrafficStats.UNSUPPORTED
+                            && TrafficStats.getMobileRxBytes() != TrafficStats.UNSUPPORTED) {
+                        long receivedBytes = TrafficStats.getTotalRxBytes() - TrafficStats.getMobileRxBytes();
+                        receiving = receivedBytes - prevReceivedBytes;
+                        prevReceivedBytes = receivedBytes;
+                        receivingTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, receiving);
+                        receivedTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, receivedBytes);
+                    } else {
+                        receivingTxt = "Unsupported";
+                        receivedTxt = "Unsupported";
+                    }
+                    text = "receiving: " + receivingTxt + "\nsending: " + sendingTxt;
+                    bigText = text + "\nreceived: " + receivedTxt + "\nsent: " + sentTxt;
+                    iconResId = R.drawable.ic_stat_wifi;
                 }
 
-                long receivedBytes = TrafficStats.getMobileRxBytes();
-                if (receivedBytes != TrafficStats.UNSUPPORTED) {
-                    receiving = receivedBytes - prevReceivedBytes;
-                    prevReceivedBytes = receivedBytes;
-                    receivingTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, receiving);
-                    receivedTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, receivedBytes);
-                } else {
-                    receivingTxt = "Unsupported";
-                    receivedTxt = "Unsupported";
-                }
-                text = "receiving: " + receivingTxt + "\nsending: " + sendingTxt;
-                bigText = text + "\nreceived: " + receivedTxt + "\nsent: " + sentTxt;
-                iconResId = R.drawable.ic_stat_mobile;
+                Intent intent = new Intent(this, MainActivity.class);
+                TaskStackBuilder stackBuilder = TaskStackBuilder.create(this);
+                stackBuilder.addParentStack(MainActivity.class);
+                stackBuilder.addNextIntent(intent);
+                PendingIntent resultPendingIntent =
+                        stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
 
-            } else if (isWifi()) {
-                if (TrafficStats.getTotalTxBytes() != TrafficStats.UNSUPPORTED
-                        && TrafficStats.getMobileTxBytes() != TrafficStats.UNSUPPORTED) {
-                    long sentBytes = TrafficStats.getTotalTxBytes() - TrafficStats.getMobileTxBytes();
-                    sending = sentBytes - prevSentBytes;
-                    prevSentBytes = sentBytes;
-                    sendingTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, sending);
-                    sentTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, sentBytes);
-                } else {
-                    sendingTxt = "Unsupported";
-                    sentTxt = "Unsupported";
-                }
+                Notification notification = builder
+                        .setSmallIcon(iconResId)
+                        .setContentTitle("Network Monitor")
+                        .setContentText(text)
+                        .setOngoing(true)
+                        .setContentIntent(resultPendingIntent)
+                        .setStyle(new NotificationCompat.BigTextStyle().bigText(bigText))
+                        .build();
 
-                if (TrafficStats.getTotalRxBytes() != TrafficStats.UNSUPPORTED
-                        && TrafficStats.getMobileRxBytes() != TrafficStats.UNSUPPORTED) {
-                    long receivedBytes = TrafficStats.getTotalRxBytes() - TrafficStats.getMobileRxBytes();
-                    receiving = receivedBytes - prevReceivedBytes;
-                    prevReceivedBytes = receivedBytes;
-                    receivingTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, receiving);
-                    receivedTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, receivedBytes);
-                } else {
-                    receivingTxt = "Unsupported";
-                    receivedTxt = "Unsupported";
-                }
-                text = "receiving: " + receivingTxt + "\nsending: " + sendingTxt;
-                bigText = text + "\nreceived: " + receivedTxt + "\nsent: " + sentTxt;
-                iconResId = R.drawable.ic_stat_wifi;
+                startForeground(SERVICE_ID, notification);
+                mDelayTime = 1000;
+            } else {
+                stopForeground(true);
+                mDelayTime = 5000;
             }
-
-            Intent intent = new Intent(this, MainActivity.class);
-            TaskStackBuilder stackBuilder = TaskStackBuilder.create(this);
-            stackBuilder.addParentStack(MainActivity.class);
-            stackBuilder.addNextIntent(intent);
-            PendingIntent resultPendingIntent =
-                    stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
-
-            Notification notification = builder
-                    .setSmallIcon(iconResId)
-                    .setContentTitle("Network Monitor")
-                    .setContentText(text)
-                    .setOngoing(true)
-                    .setContentIntent(resultPendingIntent)
-                    .setStyle(new NotificationCompat.BigTextStyle().bigText(bigText))
-                    .build();
-
-            startForeground(SERVICE_ID, notification);
 
             try {
                 Thread.sleep(mDelayTime);
@@ -141,13 +145,27 @@ public class NetworkMonitoringService extends Service implements Runnable {
         }
     }
 
-    public boolean isWifi() {
+    private boolean isConnected() {
+        ConnectivityManager connMgr =
+                (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+
+        if (connMgr != null) {
+            NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
+            if (networkInfo != null) {
+                return networkInfo.isConnected();
+            }
+        }
+
+        return false;
+    }
+
+    private boolean isWifi() {
         ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo wifi = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
         return wifi != null && wifi.isConnected();
     }
 
-    public boolean isMobile() {
+    private boolean isMobile() {
         ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo mobile = connManager.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
         return mobile != null && mobile.isConnected();
