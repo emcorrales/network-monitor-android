@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Network Monitor</string>
+    <string name="downloading">Downloading:</string>
+    <string name="upload">Uploading:</string>
+    <string name="total_download">Received:</string>
+    <string name="total_upload">Sent:</string>
 </resources>

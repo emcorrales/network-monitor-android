@@ -16,9 +16,11 @@ import android.text.format.Formatter;
 
 public class NetworkMonitoringService extends Service implements Runnable {
     public static final int SERVICE_ID = 777;
+    private static final String UNSUPPORTED = "Unsupported";
 
     private boolean mIsNotificationEnabled = true;
     private int mDelayTime = 1000;
+    private NotificationCompat.Builder mNotifBuilder;
 
     @Nullable
     @Override
@@ -40,25 +42,24 @@ public class NetworkMonitoringService extends Service implements Runnable {
 
     @Override
     public void run() {
-        NotificationCompat.Builder builder =
-                new NotificationCompat.Builder(NetworkMonitoringService.this);
+        if (mNotifBuilder == null) {
+            mNotifBuilder = new NotificationCompat.Builder(NetworkMonitoringService.this);
+        }
 
         long prevSentBytes = 0;
         long prevReceivedBytes = 0;
         mIsNotificationEnabled = true;
 
         while (mIsNotificationEnabled) {
-            String text = null;
-            String bigText = null;
-            long receiving;
-            long sending;
-            String sendingTxt;
-            String sentTxt;
-            String receivingTxt;
-            String receivedTxt;
+            String sendingTxt = null;
+            String sentTxt = null;
+            String receivingTxt = null;
+            String receivedTxt = null;
             int iconResId = R.mipmap.ic_launcher;
 
             if (isConnected()) {
+                long receiving;
+                long sending;
                 if (isMobile()) {
                     long sentBytes = TrafficStats.getMobileTxBytes();
                     if (sentBytes != TrafficStats.UNSUPPORTED) {
@@ -67,8 +68,8 @@ public class NetworkMonitoringService extends Service implements Runnable {
                         sendingTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, sending);
                         sentTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, sentBytes);
                     } else {
-                        sendingTxt = "Unsupported";
-                        sentTxt = "Unsupported";
+                        sendingTxt = UNSUPPORTED;
+                        sentTxt = UNSUPPORTED;
                     }
 
                     long receivedBytes = TrafficStats.getMobileRxBytes();
@@ -78,11 +79,9 @@ public class NetworkMonitoringService extends Service implements Runnable {
                         receivingTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, receiving);
                         receivedTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, receivedBytes);
                     } else {
-                        receivingTxt = "Unsupported";
-                        receivedTxt = "Unsupported";
+                        receivingTxt = UNSUPPORTED;
+                        receivedTxt = UNSUPPORTED;
                     }
-                    text = "receiving: " + receivingTxt + "\nsending: " + sendingTxt;
-                    bigText = text + "\nreceived: " + receivedTxt + "\nsent: " + sentTxt;
                     iconResId = R.drawable.ic_stat_mobile;
 
                 } else if (isWifi()) {
@@ -94,8 +93,8 @@ public class NetworkMonitoringService extends Service implements Runnable {
                         sendingTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, sending);
                         sentTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, sentBytes);
                     } else {
-                        sendingTxt = "Unsupported";
-                        sentTxt = "Unsupported";
+                        sendingTxt = UNSUPPORTED;
+                        sentTxt = UNSUPPORTED;
                     }
 
                     if (TrafficStats.getTotalRxBytes() != TrafficStats.UNSUPPORTED
@@ -106,28 +105,26 @@ public class NetworkMonitoringService extends Service implements Runnable {
                         receivingTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, receiving);
                         receivedTxt = Formatter.formatShortFileSize(NetworkMonitoringService.this, receivedBytes);
                     } else {
-                        receivingTxt = "Unsupported";
-                        receivedTxt = "Unsupported";
+                        receivingTxt = UNSUPPORTED;
+                        receivedTxt = UNSUPPORTED;
                     }
-                    text = "receiving: " + receivingTxt + "\nsending: " + sendingTxt;
-                    bigText = text + "\nreceived: " + receivedTxt + "\nsent: " + sentTxt;
                     iconResId = R.drawable.ic_stat_wifi;
                 }
 
-                Intent intent = new Intent(this, MainActivity.class);
-                TaskStackBuilder stackBuilder = TaskStackBuilder.create(this);
-                stackBuilder.addParentStack(MainActivity.class);
-                stackBuilder.addNextIntent(intent);
-                PendingIntent resultPendingIntent =
-                        stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
+                String text = getString(R.string.downloading) + receivingTxt + "\n" + getString(R.string.upload) + sendingTxt;
 
-                Notification notification = builder
+                NotificationCompat.Style notifStyle = new NotificationCompat.InboxStyle()
+                        .addLine(getString(R.string.downloading) + " " + receivingTxt + "\t" + getString(R.string.total_download) + receivedTxt)
+                        .addLine(getString(R.string.upload) + " " + sendingTxt + "\t" + getString(R.string.total_upload) + sentTxt);
+
+                Notification notification = mNotifBuilder
                         .setSmallIcon(iconResId)
-                        .setContentTitle("Network Monitor")
+                        .setContentTitle(getString(R.string.app_name))
                         .setContentText(text)
                         .setOngoing(true)
-                        .setContentIntent(resultPendingIntent)
-                        .setStyle(new NotificationCompat.BigTextStyle().bigText(bigText))
+                        .setContentIntent(createPendingIntent())
+                        .setStyle(notifStyle)
+                        .setPriority(Notification.PRIORITY_LOW)
                         .build();
 
                 startForeground(SERVICE_ID, notification);
@@ -148,14 +145,12 @@ public class NetworkMonitoringService extends Service implements Runnable {
     private boolean isConnected() {
         ConnectivityManager connMgr =
                 (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-
         if (connMgr != null) {
             NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
             if (networkInfo != null) {
                 return networkInfo.isConnected();
             }
         }
-
         return false;
     }
 
@@ -169,5 +164,13 @@ public class NetworkMonitoringService extends Service implements Runnable {
         ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo mobile = connManager.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
         return mobile != null && mobile.isConnected();
+    }
+
+    private PendingIntent createPendingIntent() {
+        Intent intent = new Intent(this, MainActivity.class);
+        TaskStackBuilder stackBuilder = TaskStackBuilder.create(this);
+        stackBuilder.addParentStack(MainActivity.class);
+        stackBuilder.addNextIntent(intent);
+        return stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 }
